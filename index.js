@@ -40,7 +40,7 @@ app.delete('/user/:userId', async function(req, res) {
     }
 });
 
-// GET endpoint to retrieve a user's viewed videos
+// Retrieve user's viewed videos
 app.get('/user/:userId/views', async function(req, res) {
     const userId = req.params.userId;
   
@@ -57,7 +57,7 @@ app.get('/user/:userId/views', async function(req, res) {
     res.status(200).send(viewedVideos); // Return the viewed videos list
 });
 
-// PUT endpoint to register a new video
+// Register a new video
 app.put('/video', async function(req, res) {
     const { id, description, lengthInS } = req.body;
   
@@ -78,7 +78,7 @@ app.put('/video', async function(req, res) {
     }
 });
 
-// GET endpoint to retrieve information about a video by its ID
+// Retrieve information about a video by its ID
 app.get('/video/:id', async function(req, res) {
     const videoId = req.params.id;
   
@@ -91,7 +91,7 @@ app.get('/video/:id', async function(req, res) {
     }
 });
 
-// GET endpoint to retrieve the views count for a video by its ID
+// Retrieve the views count for a video by its ID
 app.get('/video/:id/views', async function(req, res) {
     const videoId = req.params.id;
   
@@ -109,7 +109,7 @@ app.get('/video/:id/views', async function(req, res) {
     res.status(200).send({ views: viewsCount ? Number(viewsCount) : 0 });
 });
 
-// POST endpoint to register a video view for a specific video
+// Register a video view for a specific video
 app.post('/video/:id/views', async function(req, res) {
     const videoId = req.params.id;
     const { userId } = req.body;
@@ -135,16 +135,23 @@ app.post('/video/:id/views', async function(req, res) {
     res.status(200).send("Video view registered successfully");
 });
 
+// Flush the entire DB
+app.delete('/flushall', async function(req, res) {
+    await redisClient.flushAll();
+
+    res.status(200).send("DB flushed successfully");
+});
+
 function respondWithUserExists(res) {
-    res.status(400).send({ message: "User already exists"});
+    res.status(400).send({ message: "User already exists" });
 }
 
 function respondWithUserNotFound(res) {
-    res.status(404).send({ message: "User not found"});
+    res.status(404).send({ message: "User not found" });
 }
 
 function respondWithVideoNotFound(res) {
-    res.status(400).send({ message: "Video not found"});
+    res.status(400).send({ message: "Video not found" });
 }
 
 // Connection to DB
