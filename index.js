@@ -54,7 +54,7 @@ app.get('/user/:userId/views', async function(req, res) {
     // Retrieve the viewed videos list from DB
     const viewedVideos = await redisClient.sMembers(`User:${userId}:viewedVideos`);
   
-    res.status(200).send({ viewedVideos }); // Return the viewed videos list
+    res.status(200).send(viewedVideos); // Return the viewed videos list
 });
 
 // PUT endpoint to register a new video
@@ -140,7 +140,7 @@ function respondWithUserExists(res) {
 }
 
 function respondWithUserNotFound(res) {
-    res.status(400).send({ message: "User not found"});
+    res.status(404).send({ message: "User not found"});
 }
 
 function respondWithVideoNotFound(res) {
