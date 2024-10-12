@@ -9,10 +9,10 @@ Make sure you have Docker Desktop installed:
 
 ```bash
 # launch and init empty db
-docker-compose up -d
+docker compose up -d
 ```
 
 ```bash
 # recreate db / cleanup
-docker-compose down -v && docker-compose up -d
+docker compose down -v && docker-compose up -d
 ```
