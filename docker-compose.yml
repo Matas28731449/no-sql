@@ -1,13 +1,14 @@
 services:
-  redis:
-    image: redis:latest
-    container_name: redis-container
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb-container
     ports:
-      - "6379:6379"
+      - "27017:27017"
     volumes:
-      - redis-data:/data
+      - mongo-data:/data
     environment:
-      - REDIS_PASSWORD=pass
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: pass
 
 volumes:
-  redis-data:
+  mongo-data:
