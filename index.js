@@ -117,6 +117,92 @@ app.delete('/products/:productId', async (req, res) => {
     }
 });
 
+// PUT endpoint to register a new warehouse
+app.put('/warehouses', async (req, res) => {
+    const { name, location, capacity } = req.body;
+
+    // Validation: check for required fields
+    if (!name || !location || capacity == null) {
+        return res.status(400).json({ error: 'Invalid input, missing name, location, or capacity' });
+    }
+
+    try {
+        const db = mongoClient.db();
+        const warehousesCollection = db.collection('warehouses');
+
+        // Create the warehouse document
+        const warehouse = {
+            id: new ObjectId().toString(), // Generate ID
+            name,
+            location,
+            capacity,
+        };
+
+        // Insert the warehouse
+        await warehousesCollection.insertOne(warehouse);
+
+        // Respond with success and the generated ID
+        res.status(201).json({ id: warehouse.id });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to register warehouse' });
+    }
+});
+
+// GET endpoint to get warehouse details by warehouseId
+app.get('/warehouses/:warehouseId', async (req, res) => {
+    const { warehouseId } = req.params;
+
+    try {
+        const db = mongoClient.db();
+        const warehousesCollection = db.collection('warehouses');
+
+        // Find warehouse by warehouseId
+        const warehouse = await warehousesCollection.findOne({ id: warehouseId });
+
+        if (!warehouse) {
+            return res.status(404).json({ error: 'Warehouse not found' });
+        }
+
+        // Respond with warehouse details
+        res.status(200).json({
+            id: warehouse.id,
+            name: warehouse.name,
+            location: warehouse.location,
+            capacity: warehouse.capacity,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to retrieve warehouse details' });
+    }
+});
+
+// DELETE endpoint to delete a warehouse by warehouseId
+app.delete('/warehouses/:warehouseId', async (req, res) => {
+    const { warehouseId } = req.params;
+
+    try {
+        const db = mongoClient.db();
+        const warehousesCollection = db.collection('warehouses');
+
+        // Attempt to delete the warehouse by warehouseId
+        const result = await warehousesCollection.deleteOne({ id: warehouseId });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ error: 'Warehouse not found' });
+        }
+
+        // Optionally, delete associated inventory if there's a relationship (assuming inventory is stored in a separate collection)
+        // await db.collection('inventory').deleteMany({ warehouseId });
+
+        // Respond with 204 if deletion was successful
+        res.status(204).send();
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to delete warehouse' });
+    }
+});
+
 // Start the server
 app.listen(3000, async () => {
     await mongoClient.connect();
