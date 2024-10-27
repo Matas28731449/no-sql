@@ -194,7 +194,7 @@ app.delete('/warehouses/:warehouseId', async (req, res) => {
         }
 
         // Optionally, delete associated inventory if there's a relationship (assuming inventory is stored in a separate collection)
-        // await db.collection('inventory').deleteMany({ warehouseId });
+        await db.collection('inventory').deleteMany({ warehouseId });
 
         // Respond with 204 if deletion was successful
         res.status(204).send();
@@ -506,7 +506,7 @@ app.post('/cleanup', async (req, res) => {
 });
 
 // Start the server
-app.listen(3000, async () => {
+app.listen(8080, async () => {
     await mongoClient.connect();
     console.log('Connected to MongoDB');
 });
