@@ -87,6 +87,7 @@ app.get('/products/:productId', async (req, res) => {
             id: product.id,
             name: product.name,
             price: product.price,
+            category: product.category,
         });
     } catch (error) {
         console.error(error);
