@@ -1,13 +1,19 @@
 services:
-  redis:
-    image: redis:latest
-    container_name: redis-container
+  cassandra:
+    image: cassandra:latest
+    container_name: cassandra-container
     ports:
-      - "6379:6379"
+      - "9042:9042"
     volumes:
-      - redis-data:/data
+      - cassandra-data:/var/lib/cassandra
     environment:
-      - REDIS_PASSWORD=pass
+      CASSANDRA_SEEDS: "cassandra"
+      CASSANDRA_CLUSTER_NAME: "TestCluster"
+      CASSANDRA_START_RPC: "true"
+      CASSANDRA_NUM_TOKENS: "256"
+      CASSANDRA_DC: "datacenter1"
+      CASSANDRA_RACK: "rack1"
+      CASSANDRA_ENDPOINT_SNITCH: "GossipingPropertyFileSnitch"
 
 volumes:
-  redis-data:
+  cassandra-data:
