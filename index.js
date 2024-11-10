@@ -19,9 +19,9 @@ app.put('/products', async (req, res) => {
         const db = mongoClient.db();
         const productsCollection = db.collection('products');
 
-        // Create the product document
+        // Create the product document with MongoDB's _id
         const product = {
-            id: id || new ObjectId().toString(), // Generate ID if not provided
+            _id: id ? id : new ObjectId(), // Use provided id as _id or generate a new ObjectId
             name,
             category,
             price,
@@ -31,7 +31,7 @@ app.put('/products', async (req, res) => {
         await productsCollection.insertOne(product);
 
         // Respond with success
-        res.status(201).json({ id: product.id });
+        res.status(201).json({ id: product._id });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to register product' });
@@ -52,9 +52,9 @@ app.get('/products', async (req, res) => {
         // Find products
         const products = await productsCollection.find(query).toArray();
 
-        // Map results to match response schema
+        // Map results to match response schema and include id instead of _id
         const response = products.map(product => ({
-            id: product.id,
+            id: product._id,          // Map MongoDB's _id to id in response
             name: product.name,
             category: product.category,
             price: product.price,
@@ -75,16 +75,16 @@ app.get('/products/:productId', async (req, res) => {
         const db = mongoClient.db();
         const productsCollection = db.collection('products');
 
-        // Find product by productId
-        const product = await productsCollection.findOne({ id: productId });
+        // Convert productId to an ObjectId for MongoDB lookup
+        const product = await productsCollection.findOne({ _id: new ObjectId(productId) });
 
         if (!product) {
             return res.status(404).json({ error: 'Product not found' });
         }
 
-        // Respond with product details
+        // Respond with product details, mapping _id to id
         res.status(200).json({
-            id: product.id,
+            id: product._id,       // Map MongoDB's _id to id
             name: product.name,
             price: product.price,
             category: product.category,
@@ -103,8 +103,8 @@ app.delete('/products/:productId', async (req, res) => {
         const db = mongoClient.db();
         const productsCollection = db.collection('products');
 
-        // Attempt to delete the product by productId
-        const result = await productsCollection.deleteOne({ id: productId });
+        // Convert productId to ObjectId for MongoDB lookup
+        const result = await productsCollection.deleteOne({ _id: new ObjectId(productId) });
 
         if (result.deletedCount === 0) {
             return res.status(404).json({ error: 'Product not found' });
@@ -133,17 +133,16 @@ app.put('/warehouses', async (req, res) => {
 
         // Create the warehouse document
         const warehouse = {
-            id: new ObjectId().toString(), // Generate ID
             name,
             location,
             capacity,
         };
 
         // Insert the warehouse
-        await warehousesCollection.insertOne(warehouse);
+        const result = await warehousesCollection.insertOne(warehouse);
 
         // Respond with success and the generated ID
-        res.status(201).json({ id: warehouse.id });
+        res.status(201).json({ id: result.insertedId });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to register warehouse' });
@@ -158,8 +157,8 @@ app.get('/warehouses/:warehouseId', async (req, res) => {
         const db = mongoClient.db();
         const warehousesCollection = db.collection('warehouses');
 
-        // Find warehouse by warehouseId
-        const warehouse = await warehousesCollection.findOne({ id: warehouseId });
+        // Convert warehouseId to ObjectId
+        const warehouse = await warehousesCollection.findOne({ _id: new ObjectId(warehouseId) });
 
         if (!warehouse) {
             return res.status(404).json({ error: 'Warehouse not found' });
@@ -167,7 +166,7 @@ app.get('/warehouses/:warehouseId', async (req, res) => {
 
         // Respond with warehouse details
         res.status(200).json({
-            id: warehouse.id,
+            id: warehouse._id, // MongoDB’s native ID
             name: warehouse.name,
             location: warehouse.location,
             capacity: warehouse.capacity,
@@ -186,14 +185,14 @@ app.delete('/warehouses/:warehouseId', async (req, res) => {
         const db = mongoClient.db();
         const warehousesCollection = db.collection('warehouses');
 
-        // Attempt to delete the warehouse by warehouseId
-        const result = await warehousesCollection.deleteOne({ id: warehouseId });
+        // Convert warehouseId to ObjectId to match MongoDB's _id
+        const result = await warehousesCollection.deleteOne({ _id: new ObjectId(warehouseId) });
 
         if (result.deletedCount === 0) {
             return res.status(404).json({ error: 'Warehouse not found' });
         }
 
-        // Optionally, delete associated inventory if there's a relationship (assuming inventory is stored in a separate collection)
+        // Delete associated inventory based on warehouseId reference
         await db.collection('inventory').deleteMany({ warehouseId });
 
         // Respond with 204 if deletion was successful
@@ -221,13 +220,13 @@ app.put('/warehouses/:warehouseId/inventory', async (req, res) => {
         const inventoryCollection = db.collection('inventory');
 
         // Check if warehouse exists
-        const warehouse = await warehousesCollection.findOne({ id: warehouseId });
+        const warehouse = await warehousesCollection.findOne({ _id: new ObjectId(warehouseId) });
         if (!warehouse) {
             return res.status(404).json({ error: 'Warehouse not found' });
         }
 
         // Check if product exists
-        const product = await productsCollection.findOne({ id: productId });
+        const product = await productsCollection.findOne({ _id: new ObjectId(productId) });
         if (!product) {
             return res.status(404).json({ error: 'Product not found' });
         }
@@ -252,17 +251,16 @@ app.put('/warehouses/:warehouseId/inventory', async (req, res) => {
                 { warehouseId, productId },
                 { $inc: { quantity: quantity } }
             );
-            res.status(200).json({ id: existingInventory.id });
+            res.status(200).json({ id: existingInventory._id });
         } else {
-            // Insert new inventory document with generated id
+            // Insert new inventory document with generated MongoDB _id
             const inventoryDoc = {
-                id: new ObjectId().toString(),
                 warehouseId,
                 productId,
                 quantity
             };
-            await inventoryCollection.insertOne(inventoryDoc);
-            res.status(201).json({ id: inventoryDoc.id });
+            const result = await inventoryCollection.insertOne(inventoryDoc);
+            res.status(201).json({ id: result.insertedId });
         }
     } catch (error) {
         console.error(error);
@@ -280,7 +278,7 @@ app.get('/warehouses/:warehouseId/inventory', async (req, res) => {
         const inventoryCollection = db.collection('inventory');
 
         // Check if warehouse exists
-        const warehouse = await warehousesCollection.findOne({ id: warehouseId });
+        const warehouse = await warehousesCollection.findOne({ _id: new ObjectId(warehouseId) });
         if (!warehouse) {
             return res.status(404).json({ error: 'Warehouse not found' });
         }
@@ -295,7 +293,7 @@ app.get('/warehouses/:warehouseId/inventory', async (req, res) => {
 
         // Format the response to include only the required fields
         const response = inventory.map(item => ({
-            id: item.id,
+            id: item._id, // MongoDB's ObjectId for the inventory document
             productId: item.productId,
             quantity: item.quantity,
         }));
@@ -315,10 +313,14 @@ app.get('/warehouses/:warehouseId/inventory/:inventoryId', async (req, res) => {
         const db = mongoClient.db();
         const inventoryCollection = db.collection('inventory');
 
+        // Ensure ObjectId compatibility for warehouseId and inventoryId
+        const warehouseObjectId = new ObjectId(warehouseId);
+        const inventoryObjectId = new ObjectId(inventoryId);
+
         // Find the specific inventory item by warehouseId and inventoryId
         const inventoryItem = await inventoryCollection.findOne({
-            warehouseId,
-            id: inventoryId,
+            warehouseId: warehouseObjectId.toString(),
+            _id: inventoryObjectId,
         });
 
         // Check if the inventory item exists
@@ -328,7 +330,7 @@ app.get('/warehouses/:warehouseId/inventory/:inventoryId', async (req, res) => {
 
         // Respond with inventory item details
         res.status(200).json({
-            id: inventoryItem.id,
+            id: inventoryItem._id, // MongoDB's ObjectId for this inventory document
             productId: inventoryItem.productId,
             quantity: inventoryItem.quantity,
         });
@@ -347,16 +349,20 @@ app.delete('/warehouses/:warehouseId/inventory/:inventoryId', async (req, res) =
         const warehousesCollection = db.collection('warehouses');
         const inventoryCollection = db.collection('inventory');
 
+        // Convert warehouseId and inventoryId to ObjectId to ensure MongoDB compatibility
+        const warehouseObjectId = new ObjectId(warehouseId);
+        const inventoryObjectId = new ObjectId(inventoryId);
+
         // Check if the warehouse exists
-        const warehouse = await warehousesCollection.findOne({ id: warehouseId });
+        const warehouse = await warehousesCollection.findOne({ _id: warehouseObjectId });
         if (!warehouse) {
             return res.status(404).json({ error: 'Warehouse not found' });
         }
 
-        // Remove the specific inventory item
+        // Attempt to delete the specific inventory item by warehouseId and inventoryId
         const result = await inventoryCollection.deleteOne({
-            warehouseId,
-            id: inventoryId,
+            warehouseId: warehouseObjectId.toString(),
+            _id: inventoryObjectId,
         });
 
         // Check if the inventory item was found and deleted
