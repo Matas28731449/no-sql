@@ -389,7 +389,7 @@ app.get('/warehouses/:warehouseId/value', async (req, res) => {
         const productsCollection = db.collection('products');
 
         // Check if the warehouse exists
-        const warehouse = await warehousesCollection.findOne({ id: warehouseId });
+        const warehouse = await warehousesCollection.findOne({ _id: new ObjectId(warehouseId) });
         if (!warehouse) {
             return res.status(404).json({ error: 'Warehouse not found' });
         }
