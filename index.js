@@ -36,21 +36,13 @@ app.put('/channels', async (req, res) => {
     const { id, name, owner } = req.body;
 
     try {
-        // Check if the channel already exists
-        const checkQuery = 'SELECT id FROM channels WHERE id = ?';
-        const checkResult = await cassandraClient.execute(checkQuery, [id], { prepare: true });
+        const insertQuery = 'INSERT INTO channels (id, name, owner) VALUES (?, ?, ?) IF NOT EXISTS';
+        const result = await cassandraClient.execute(insertQuery, [id, name, owner], { prepare: true });
 
-        if (checkResult.rowLength > 0) {
-            return res.status(409).json({ error: 'Channel with this ID already exists' });
+        if (result.wasApplied()) {
+            const insertOwnerQuery = 'INSERT INTO channels_by_owner (owner, id, name) VALUES (?, ?, ?)';
+            await cassandraClient.execute(insertOwnerQuery, [owner, id, name], { prepare: true });
         }
-
-        // Insert into `channels` table
-        const insertQuery = 'INSERT INTO channels (id, name, owner) VALUES (?, ?, ?)';
-        await cassandraClient.execute(insertQuery, [id, name, owner], { prepare: true });
-
-        // Insert into additional `channels_by_owner` table
-        const insertOwnerQuery = 'INSERT INTO channels_by_owner (owner, id, name) VALUES (?, ?, ?)';
-        await cassandraClient.execute(insertOwnerQuery, [owner, id, name], { prepare: true });
 
         res.status(201).json({ id });
     } catch (error) {
@@ -136,18 +128,19 @@ app.delete('/channels/:channelId', async (req, res) => {
         const channelOwner = checkResult.rows[0].owner; // Store the owner for later use
 
         // First delete all videos in the channel and their views
-        const videosQuery = 'SELECT id FROM videos WHERE channel_id = ?';
-        const videosResult = await cassandraClient.execute(videosQuery, [channelId], { prepare: true });
+        // const videosQuery = 'SELECT id FROM videos WHERE channel_id = ?';
+        // const videosResult = await cassandraClient.execute(videosQuery, [channelId], { prepare: true });
 
-        if (videosResult.rowLength > 0) {
-            for (const video of videosResult.rows) {
-                // Delete views for each video
-                await cassandraClient.execute('DELETE FROM video_views WHERE channel_id = ? AND video_id = ?', [channelId, video.id], { prepare: true });
-            }
+        // if (videosResult.rowLength > 0) {
+        //     for (const video of videosResult.rows) {
+        //         // Delete views for each video
+        //         await cassandraClient.execute('DELETE FROM video_views WHERE channel_id = ? AND video_id = ?', [channelId, video.id], { prepare: true });
+        //     }
 
-            // Delete videos from the videos table
-            await cassandraClient.execute('DELETE FROM videos WHERE channel_id = ?', [channelId], { prepare: true });
-        }
+        //     // Delete videos from the videos table
+        //     await cassandraClient.execute('DELETE FROM videos WHERE channel_id = ?', [channelId], { prepare: true });
+        // }
+        await cassandraClient.execute('DELETE FROM video_views WHERE channel_id =?', [channelId]);
 
         // Now delete the channel from channels table
         await cassandraClient.execute('DELETE FROM channels WHERE id = ?', [channelId], { prepare: true });
