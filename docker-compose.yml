@@ -1,13 +1,14 @@
 services:
-  redis:
-    image: redis:latest
-    container_name: redis-container
+  neo4j:
+    image: neo4j:latest
+    container_name: neo4j-container
     ports:
-      - "6379:6379"
+      - "7474:7474"
+      - "7687:7687"
     volumes:
-      - redis-data:/data
+      - neo4j-data:/data
     environment:
-      - REDIS_PASSWORD=pass
+      - NEO4J_AUTH=neo4j/password
 
 volumes:
-  redis-data:
+  neo4j-data:

@@ -1,0 +1,17 @@
+{
+  "name": "no-sql",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.3",
+    "express": "^4.19.2",
+    "neo4j-driver": "^5.8.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
