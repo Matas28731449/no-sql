@@ -239,6 +239,209 @@ app.get("/airports/:code", async (req, res) => {
   }
 });
 
+
+
+app.put("/flights", async (req, res) => {
+  const {
+    number,
+    fromAirport,
+    toAirport,
+    price,
+    flightTimeInMinutes,
+    operator,
+  } = req.body;
+
+  // Validate required fields
+  if (!number || !fromAirport || !toAirport || !price || !flightTimeInMinutes || !operator) {
+    return res
+      .status(400)
+      .send("Flight could not be registered due to missing data");
+  }
+
+  try {
+    // Check if the departure airport exists
+    const fromAirportQuery = `MATCH (a:Airport {code: $fromAirport}) RETURN a`;
+    const fromAirportResult = await neo4jClient.run(fromAirportQuery, {
+      fromAirport,
+    });
+
+    if (fromAirportResult.records.length === 0) {
+      return res
+        .status(400)
+        .send("Departure airport not found, cannot register flight");
+    }
+
+    // Check if the arrival airport exists
+    const toAirportQuery = `MATCH (a:Airport {code: $toAirport}) RETURN a`;
+    const toAirportResult = await neo4jClient.run(toAirportQuery, {
+      toAirport,
+    });
+
+    if (toAirportResult.records.length === 0) {
+      return res
+        .status(400)
+        .send("Arrival airport not found, cannot register flight");
+    }
+
+    // Check if the flight already exists
+    const flightExistQuery = `
+        MATCH (from:Airport {code: $fromAirport})-[f:FLIGHT]->(to:Airport {code: $toAirport})
+        WHERE f.number = $number
+        RETURN f
+      `;
+    const flightExistResult = await neo4jClient.run(flightExistQuery, {
+      fromAirport,
+      toAirport,
+      number,
+    });
+
+    if (flightExistResult.records.length > 0) {
+      return res
+        .status(400)
+        .send("Flight with the same number already exists between these airports");
+    }
+
+    // Create the flight relationship between the airports
+    const createFlightQuery = `
+        MATCH (from:Airport {code: $fromAirport}), (to:Airport {code: $toAirport})
+        CREATE (from)-[f:FLIGHT {
+          number: $number,
+          price: $price,
+          flightTimeInMinutes: $flightTimeInMinutes,
+          operator: $operator
+        }]->(to)
+        RETURN f
+      `;
+    const flightResult = await neo4jClient.run(createFlightQuery, {
+      fromAirport,
+      toAirport,
+      number,
+      price,
+      flightTimeInMinutes,
+      operator,
+    });
+
+    if (flightResult.records.length === 0) {
+      return res.status(500).send("Failed to register the flight");
+    }
+
+    res.status(201).send("Flight registered successfully");
+  } catch (error) {
+    console.error("Error registering flight:", error);
+    res.status(500).send("An error occurred while registering the flight");
+  }
+});
+
+app.get("/flights/:code", async (req, res) => {
+  const { code } = req.params;
+
+  try {
+    // Query to find the flight by its code
+    const flightQuery = `
+      MATCH (from:Airport)-[f:FLIGHT {number: $code}]->(to:Airport)
+      MATCH (from)<-[:HAS_AIRPORT]-(fromCity:City), (to)<-[:HAS_AIRPORT]-(toCity:City)
+      RETURN 
+        f.number AS number,
+        from.code AS fromAirport, 
+        fromCity.name AS fromCity,
+        to.code AS toAirport, 
+        toCity.name AS toCity,
+        f.price AS price,
+        f.flightTimeInMinutes AS flightTimeInMinutes,
+        f.operator AS operator
+    `;
+    const flightResult = await neo4jClient.run(flightQuery, { code });
+
+    // Check if the flight was found
+    if (flightResult.records.length === 0) {
+      return res.status(404).send("Flight not found");
+    }
+
+    // Extract flight data
+    const record = flightResult.records[0];
+    const flight = {
+      number: record.get("number"),
+      fromAirport: record.get("fromAirport"),
+      fromCity: record.get("fromCity"),
+      toAirport: record.get("toAirport"),
+      toCity: record.get("toCity"),
+      price: record.get("price"),
+      flightTimeInMinutes: record.get("flightTimeInMinutes"),
+      operator: record.get("operator"),
+    };
+
+    // Send the flight details as response
+    res.status(200).json(flight);
+  } catch (error) {
+    console.error("Error fetching flight information:", error);
+    res.status(500).send("An error occurred while fetching the flight");
+  }
+});
+
+app.get("/search/flights/:fromCity/:toCity", async (req, res) => {
+  const { fromCity, toCity } = req.params;
+
+  try {
+    const searchFlightsQuery = `
+      MATCH path = (fromCity:City {name: $fromCity})-[:HAS_AIRPORT]->(fromAirport:Airport)-[:FLIGHT*1..3]->(toAirport:Airport)<-[:HAS_AIRPORT]-(toCity:City {name: $toCity})
+      WITH fromAirport, toAirport, relationships(path) AS flights, 
+          reduce(totalPrice = 0, flight IN relationships(path) | totalPrice + COALESCE(flight.price, 0)) AS totalPrice,
+          reduce(totalTime = 0, flight IN relationships(path) | totalTime + COALESCE(flight.flightTimeInMinutes, 0)) AS totalTime
+      RETURN 
+          fromAirport.code AS fromAirportCode, 
+          toAirport.code AS toAirportCode,
+          [rel IN flights | COALESCE(rel.number, "Unknown Flight Number")] AS flights,
+          totalPrice AS price,
+          totalTime AS timeInMinutes
+      ORDER BY totalPrice
+    `;
+
+    const result = await neo4jClient.run(searchFlightsQuery, { fromCity, toCity });
+
+    if (result.records.length === 0) {
+      return res.status(404).send("No flights found between the specified cities.");
+    }
+
+    const flights = result.records.map((record) => ({
+      fromAirport: record.get("fromAirportCode") || "Unknown Airport",
+      toAirport: record.get("toAirportCode") || "Unknown Airport",
+      flights: record.get("flights").filter(flight => flight !== "Unknown Flight Number"), // Remove "Unknown Flight Number" entries
+      price: record.get("price") || 0,
+      timeInMinutes: record.get("timeInMinutes") || 0,
+    }));
+
+    // Only include the flights array if it's not empty
+    const cleanedFlights = flights.map(flight => ({
+      ...flight,
+      flights: flight.flights.length > 0 ? flight.flights : ["No flight available"]
+    }));
+
+    res.status(200).json(cleanedFlights);
+  } catch (error) {
+    console.error("Error searching for flights:", error);
+    res.status(500).send("An error occurred while searching for flights.");
+  }
+});
+
+
+
+app.post("/cleanup", async (req, res) => {
+  try {
+    // Query to remove all flights, airports, and relationships
+    const cleanupQuery = `
+      MATCH (n)
+      DETACH DELETE n
+    `;
+    await neo4jClient.run(cleanupQuery);
+
+    // Send a success response
+    res.status(200).send("Cleanup successful.");
+  } catch (error) {
+    console.error("Error during cleanup:", error);
+    res.status(500).send("An error occurred during cleanup.");
+  }
+});
+
 // Start the server
 app.listen(8080, async () => {
   console.log("Connected to Neo4J");
