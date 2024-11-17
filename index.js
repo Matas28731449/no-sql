@@ -43,7 +43,7 @@ app.put("/cities", async (req, res) => {
     await neo4jClient.run(createCityQuery, { name, country });
 
     // Return success response
-    res.status(201).send("City registered successfully");
+    res.status(204).send("City registered successfully");
   } catch (error) {
     console.error("Error registering city:", error);
   }
@@ -113,33 +113,42 @@ app.get("/cities/:name", async (req, res) => {
   }
 });
 
-app.put("/cities/:name/airports", async (req, res) => {
-  const { name } = req.params;
-  const { code, airportName, numberOfTerminals, address } = req.body;
+app.put("/cities/:city_name/airports", async (req, res) => {
+  const { city_name } = req.params;
+  const { code, name, city, numberOfTerminals, address } = req.body;
 
-  // Check for mandatory airport attributes
-  if (!airportName) {
+  // Validate mandatory attributes
+  if (!code || !name || !city || !numberOfTerminals || !address) {
     return res
       .status(400)
-      .send("Airport could not be created due to missing data");
+      .send("Airport could not be created due to missing or invalid data");
   }
 
   try {
-    // Check if the city exists
-    const cityQuery = `MATCH (c:City {name: $name}) RETURN c`;
-    const cityResult = await neo4jClient.run(cityQuery, { name });
-
-    if (cityResult.records.length === 0) {
-      return res.status(400).send("City not found, cannot register airport.");
+    // Ensure the provided city matches the `city_name` parameter
+    if (city !== city_name) {
+      return res
+        .status(400)
+        .send(
+          `The city name in the URL (${city_name}) does not match the body (${city}).`
+        );
     }
 
-    // Check if the airport already exists in the city
+    // Check if the city exists
+    const cityQuery = `MATCH (c:City {name: $city_name}) RETURN c`;
+    const cityResult = await neo4jClient.run(cityQuery, { city_name });
+
+    if (cityResult.records.length === 0) {
+      return res.status(404).send("City not found, cannot register airport");
+    }
+
+    // Check if the airport already exists
     const airportExistQuery = `
-        MATCH (c:City {name: $name})-[:HAS_AIRPORT]->(a:Airport {code: $code})
-        RETURN a
-      `;
+          MATCH (c:City {name: $city_name})-[:HAS_AIRPORT]->(a:Airport {code: $code})
+          RETURN a
+        `;
     const airportExistResult = await neo4jClient.run(airportExistQuery, {
-      name,
+      city_name,
       code,
     });
 
@@ -147,22 +156,22 @@ app.put("/cities/:name/airports", async (req, res) => {
       return res.status(400).send("Airport already exists in this city");
     }
 
-    // Create or link the airport node to the city
+    // Create the airport node and link it to the city
     const createAirportQuery = `
-        MATCH (c:City {name: $name})
-        CREATE (a:Airport {code: $code, name: $airportName, numberOfTerminals: $numberOfTerminals, address: $address})
-        MERGE (c)-[:HAS_AIRPORT]->(a)
-        RETURN a
-      `;
-    await neo4jClient.run(createAirportQuery, {
-      name,
+          MATCH (c:City {name: $city_name})
+          CREATE (a:Airport {code: $code, name: $name, numberOfTerminals: $numberOfTerminals, address: $address})
+          MERGE (c)-[:HAS_AIRPORT]->(a)
+          RETURN a
+        `;
+    const result = await neo4jClient.run(createAirportQuery, {
+      city_name,
       code,
-      airportName,
+      name,
       numberOfTerminals,
       address,
     });
 
-    res.status(201).send("Airport created successfully");
+    res.status(204).send("Airport created successfully");
   } catch (error) {
     console.error("Error creating airport:", error);
   }
@@ -207,7 +216,7 @@ app.get("/airports/:code", async (req, res) => {
   try {
     // Query the airport by code
     const airportQuery = `
-        MATCH (a:Airport {code: $code})-[:HAS_AIRPORT]->(c:City)
+        MATCH (c:City)-[:HAS_AIRPORT]->(a:Airport {code: $code})
         RETURN a, c
       `;
     const airportResult = await neo4jClient.run(airportQuery, { code });
@@ -235,11 +244,8 @@ app.get("/airports/:code", async (req, res) => {
     res.status(200).json(airportResponse);
   } catch (error) {
     console.error("Error fetching airport:", error);
-    res.status(500).send("An error occurred while fetching the airport.");
   }
 });
-
-
 
 app.put("/flights", async (req, res) => {
   const {
@@ -252,7 +258,14 @@ app.put("/flights", async (req, res) => {
   } = req.body;
 
   // Validate required fields
-  if (!number || !fromAirport || !toAirport || !price || !flightTimeInMinutes || !operator) {
+  if (
+    !number ||
+    !fromAirport ||
+    !toAirport ||
+    !price ||
+    !flightTimeInMinutes ||
+    !operator
+  ) {
     return res
       .status(400)
       .send("Flight could not be registered due to missing data");
@@ -298,7 +311,9 @@ app.put("/flights", async (req, res) => {
     if (flightExistResult.records.length > 0) {
       return res
         .status(400)
-        .send("Flight with the same number already exists between these airports");
+        .send(
+          "Flight with the same number already exists between these airports"
+        );
     }
 
     // Create the flight relationship between the airports
@@ -325,10 +340,9 @@ app.put("/flights", async (req, res) => {
       return res.status(500).send("Failed to register the flight");
     }
 
-    res.status(201).send("Flight registered successfully");
+    res.status(204).send("Flight registered successfully");
   } catch (error) {
     console.error("Error registering flight:", error);
-    res.status(500).send("An error occurred while registering the flight");
   }
 });
 
@@ -374,7 +388,6 @@ app.get("/flights/:code", async (req, res) => {
     res.status(200).json(flight);
   } catch (error) {
     console.error("Error fetching flight information:", error);
-    res.status(500).send("An error occurred while fetching the flight");
   }
 });
 
@@ -396,34 +409,39 @@ app.get("/search/flights/:fromCity/:toCity", async (req, res) => {
       ORDER BY totalPrice
     `;
 
-    const result = await neo4jClient.run(searchFlightsQuery, { fromCity, toCity });
+    const result = await neo4jClient.run(searchFlightsQuery, {
+      fromCity,
+      toCity,
+    });
 
     if (result.records.length === 0) {
-      return res.status(404).send("No flights found between the specified cities.");
+      return res
+        .status(404)
+        .send("No flights found between the specified cities");
     }
 
     const flights = result.records.map((record) => ({
       fromAirport: record.get("fromAirportCode") || "Unknown Airport",
       toAirport: record.get("toAirportCode") || "Unknown Airport",
-      flights: record.get("flights").filter(flight => flight !== "Unknown Flight Number"), // Remove "Unknown Flight Number" entries
+      flights: record
+        .get("flights")
+        .filter((flight) => flight !== "Unknown Flight Number"), // Remove "Unknown Flight Number" entries
       price: record.get("price") || 0,
       timeInMinutes: record.get("timeInMinutes") || 0,
     }));
 
     // Only include the flights array if it's not empty
-    const cleanedFlights = flights.map(flight => ({
+    const cleanedFlights = flights.map((flight) => ({
       ...flight,
-      flights: flight.flights.length > 0 ? flight.flights : ["No flight available"]
+      flights:
+        flight.flights.length > 0 ? flight.flights : ["No flight available"],
     }));
 
     res.status(200).json(cleanedFlights);
   } catch (error) {
     console.error("Error searching for flights:", error);
-    res.status(500).send("An error occurred while searching for flights.");
   }
 });
-
-
 
 app.post("/cleanup", async (req, res) => {
   try {
@@ -435,10 +453,9 @@ app.post("/cleanup", async (req, res) => {
     await neo4jClient.run(cleanupQuery);
 
     // Send a success response
-    res.status(200).send("Cleanup successful.");
+    res.status(200).send("Cleanup successful");
   } catch (error) {
     console.error("Error during cleanup:", error);
-    res.status(500).send("An error occurred during cleanup.");
   }
 });
 
