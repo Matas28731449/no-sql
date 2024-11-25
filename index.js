@@ -405,7 +405,7 @@ app.get("/search/flights/:fromCity/:toCity", async (req, res) => {
           toAirport.code AS toAirportCode,
           [rel IN flights | COALESCE(rel.number, "Unknown Flight Number")] AS flights,
           totalPrice AS price,
-          totalTime AS timeInMinutes
+          totalTime AS flightTimeInMinutes
       ORDER BY totalPrice
     `;
 
@@ -425,9 +425,9 @@ app.get("/search/flights/:fromCity/:toCity", async (req, res) => {
       toAirport: record.get("toAirportCode") || "Unknown Airport",
       flights: record
         .get("flights")
-        .filter((flight) => flight !== "Unknown Flight Number"), // Remove "Unknown Flight Number" entries
+        .filter((flight) => flight !== "Unknown Flight Number"),
       price: record.get("price") || 0,
-      timeInMinutes: record.get("timeInMinutes") || 0,
+      flightTimeInMinutes: record.get("flightTimeInMinutes") || 0,
     }));
 
     // Only include the flights array if it's not empty
