@@ -11,7 +11,7 @@ app.put('/products', async (req, res) => {
     const { id, name, category, price } = req.body;
 
     // Validation: check for required fields
-    if (!name || price == null) {
+    if (!name || price == null || !id) {
         return res.status(400).json({ error: 'Invalid input, missing name or price' });
     }
 
@@ -21,7 +21,7 @@ app.put('/products', async (req, res) => {
 
         // Create the product document with MongoDB's _id
         const product = {
-            _id: id ? id : new ObjectId(), // Use provided id as _id or generate a new ObjectId
+            _id: id,
             name,
             category,
             price,
@@ -76,7 +76,7 @@ app.get('/products/:productId', async (req, res) => {
         const productsCollection = db.collection('products');
 
         // Convert productId to an ObjectId for MongoDB lookup
-        const product = await productsCollection.findOne({ _id: new ObjectId(productId) });
+        const product = await productsCollection.findOne({ _id: productId });
 
         if (!product) {
             return res.status(404).json({ error: 'Product not found' });
@@ -226,7 +226,7 @@ app.put('/warehouses/:warehouseId/inventory', async (req, res) => {
         }
 
         // Check if product exists
-        const product = await productsCollection.findOne({ _id: new ObjectId(productId) });
+        const product = await productsCollection.findOne({ _id: productId });
         if (!product) {
             return res.status(404).json({ error: 'Product not found' });
         }
@@ -401,7 +401,7 @@ app.get('/warehouses/:warehouseId/value', async (req, res) => {
                 $lookup: {
                     from: 'products', // Join with the products collection
                     localField: 'productId',
-                    foreignField: 'id',
+                    foreignField: '_id',
                     as: 'productDetails',
                 },
             },
