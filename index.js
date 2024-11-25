@@ -11,7 +11,7 @@ app.put('/products', async (req, res) => {
     const { id, name, category, price } = req.body;
 
     // Validation: check for required fields
-    if (!name || price == null || !id) {
+    if (!name || price == null) {
         return res.status(400).json({ error: 'Invalid input, missing name or price' });
     }
 
@@ -54,7 +54,7 @@ app.get('/products', async (req, res) => {
 
         // Map results to match response schema and include id instead of _id
         const response = products.map(product => ({
-            id: product._id,          // Map MongoDB's _id to id in response
+            id: product._id,
             name: product.name,
             category: product.category,
             price: product.price,
@@ -76,7 +76,7 @@ app.get('/products/:productId', async (req, res) => {
         const productsCollection = db.collection('products');
 
         // Convert productId to an ObjectId for MongoDB lookup
-        const product = await productsCollection.findOne({ _id: productId });
+        const product = await productsCollection.findOne({ _id:  new ObjectId(productId) });
 
         if (!product) {
             return res.status(404).json({ error: 'Product not found' });
