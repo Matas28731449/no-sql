@@ -12,6 +12,11 @@ const authorize = (requiredRole) => (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        if (decoded.role === 'admin') {
+            return next();
+        }
+
         if (requiredRole && decoded.role !== requiredRole) {
             return res.status(403).json({ error: 'Access denied' });
         }
