@@ -36,7 +36,6 @@ app.post('/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid email' });
         }
 
-        // Validate password (assuming plain-text; replace with hashed password comparison in production)
         if (password !== user.password) {
             return res.status(401).json({ error: 'Invalid password' });
         }
@@ -54,7 +53,17 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// 3. Delete user
+// 3. Get all users (admin only)
+app.get('/users', authorize('admin'), async (req, res) => {
+    try {
+        const users = await User.find().select('-__v');
+        res.status(200).json(users);
+    } catch (err) {
+        res.status(500).json({ error: 'Unable to fetch users' });
+    }
+});
+
+// 4. Delete user (admin only)
 app.delete('/users/:id', authorize('admin'), async (req, res) => {
     try {
         const { id } = req.params; // Get the user ID from the URL parameter
@@ -70,18 +79,7 @@ app.delete('/users/:id', authorize('admin'), async (req, res) => {
     }
 });
 
-
-// 4. Get all users (admin only)
-app.get('/users', authorize('admin'), async (req, res) => {
-    try {
-        const users = await User.find().select('-__v');
-        res.status(200).json(users);
-    } catch (err) {
-        res.status(500).json({ error: 'Unable to fetch users' });
-    }
-});
-
-// 5. Create category
+// 5. Create category (admin only)
 app.post('/categories', authorize('admin'), async (req, res) => {
     try {
         const category = await Category.create(req.body);
@@ -94,14 +92,32 @@ app.post('/categories', authorize('admin'), async (req, res) => {
 // 6. Get all categories (for all users)
 app.get('/categories', async (req, res) => {
     try {
-        const categories = await Category.find({});
+        const categories = await Category.find({}).select('-__v');
         res.json(categories);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// 7. Create Ad
+// 7. Delete category (admin only)
+app.delete('/categories/:id', authorize('admin'), async (req, res) => {
+    const { id } = req.params;  // Extract category ID from the URL
+
+    try {
+        // Find and delete the category by its ID
+        const category = await Category.findByIdAndDelete(id);
+
+        if (!category) {
+            return res.status(404).json({ error: 'Category not found' });
+        }
+
+        res.status(200).json({ message: 'Category deleted successfully', category });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 8. Create ad
 app.post('/ads', authorize('user'), async (req, res) => {
     try {
         const { content, images, category_id, expires_at } = req.body;
@@ -127,7 +143,7 @@ app.post('/ads', authorize('user'), async (req, res) => {
     }
 });
 
-// 8. Get All Ads
+// 9. Get all ads
 app.get('/ads', async (req, res) => {
     try {
         const { category, page = 1, limit = 10 } = req.query;

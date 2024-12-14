@@ -12,17 +12,14 @@ const authorize = (requiredRole) => (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        if (decoded.role === 'admin') {
+    
+        // Allow admin role to bypass further checks
+        if (decoded.role === 'admin' || !requiredRole || decoded.role === requiredRole) {
+            req.user = decoded; // Attach decoded user info to the request
             return next();
         }
-
-        if (requiredRole && decoded.role !== requiredRole) {
-            return res.status(403).json({ error: 'Access denied' });
-        }
-
-        req.user = decoded; // Attach decoded user info to the request
-        next();
+    
+        return res.status(403).json({ error: 'Access denied' });
     } catch (err) {
         return res.status(401).json({ error: 'Invalid or expired token' });
     }
