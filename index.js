@@ -101,6 +101,68 @@ app.get('/categories', async (req, res) => {
     }
 });
 
+// 7. Create Ad
+app.post('/ads', authorize('user'), async (req, res) => {
+    try {
+        const { content, images, category_id, expires_at } = req.body;
+
+        // Validate category
+        const categoryExists = await Category.findById(category_id);
+        if (!categoryExists) {
+            return res.status(400).json({ error: 'Invalid category ID' });
+        }
+
+        // Create the ad with createdByUser from the token
+        const ad = await Ad.create({
+            content,
+            images,
+            category_id,
+            createdBy: req.user.id,
+            expires_at,
+        });
+
+        res.status(201).json(ad);
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// 8. Get All Ads
+app.get('/ads', async (req, res) => {
+    try {
+        const { category, page = 1, limit = 10 } = req.query;
+
+        // Pagination calculations
+        const pageNumber = parseInt(page, 10);
+        const pageSize = parseInt(limit, 10);
+        const skip = (pageNumber - 1) * pageSize;
+
+        // Build the query object
+        const query = {};
+        if (category) {
+            query.category_id = category; // Filter by category
+        }
+
+        const ads = await Ad.find(query)
+            .populate('category_id', 'name') // Populate category name
+            .populate('createdBy', 'name email') // Populate user details
+            .skip(skip)
+            .limit(pageSize);
+
+        // Total ads count for pagination
+        const totalAds = await Ad.countDocuments(query);
+        const totalPages = Math.ceil(totalAds / pageSize);
+
+        res.json({
+            ads,
+            totalPages,
+            currentPage: pageNumber,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Start the server
 app.listen(8080, async () => {
     console.log('Connected to MongoDB');
