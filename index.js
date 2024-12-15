@@ -179,6 +179,107 @@ app.get('/ads', async (req, res) => {
     }
 });
 
+// 9. Search ads by title
+app.get('/ads/search', async (req, res) => {
+    try {
+        const { title } = req.query;
+
+        if (!title) {
+            return res.status(400).json({ error: 'Title query parameter is required' });
+        }
+
+        // Perform a case-insensitive regex search for partial matches
+        const ads = await Ad.find({
+            'content.title': { $regex: title, $options: 'i' }, // 'i' makes it case-insensitive
+            expires_at: { $gte: new Date() }, // Ensure ads are still valid
+        });
+
+        if (ads.length === 0) {
+            return res.status(404).json({ message: 'No matching ads found' });
+        }
+
+        res.status(200).json(ads);
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+
+// 11. Update Ad Status (User can only edit his own)
+app.patch('/ads', authorize('user'), async (req, res) => {
+    try {
+        const adId = req.query.id; // Extract the ad ID from the query parameter
+        if (!adId) {
+            return res.status(400).json({ error: 'Ad ID is required' });
+        }
+
+        const updates = req.body;
+
+        // Find the ad
+        const ad = await Ad.findById(adId);
+        if (!ad) {
+            return res.status(404).json({ error: 'Ad not found' });
+        }
+
+        // Check permissions
+        if (ad.createdBy.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'You are not authorized to edit this ad' });
+        }
+
+        // Validate status if being updated
+        if (updates.status && !['Active', 'Reserved', 'Sold'].includes(updates.status)) {
+            return res.status(400).json({ error: 'Invalid status value' });
+        }
+
+        // Update the ad
+        const updatedAd = await Ad.findByIdAndUpdate(adId, updates, { new: true, runValidators: true });
+        res.status(200).json(updatedAd);
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// 12. Delete ADS (User can only delete his own)
+app.delete('/ads', authorize('user'), async (req, res) => {
+    try {
+        const adId = req.query.id; // Extract the ad ID from the query parameter
+        if (!adId) {
+            return res.status(400).json({ error: 'Ad ID is required' });
+        }
+
+        // Find the ad
+        const ad = await Ad.findById(adId);
+        if (!ad) {
+            return res.status(404).json({ error: 'Ad not found' });
+        }
+
+        // Check permissions
+        if (ad.createdBy.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'You are not authorized to delete this ad' });
+        }
+
+        // Delete the ad
+        await Ad.findByIdAndDelete(adId);
+        res.status(200).json({ message: 'Ad successfully deleted' });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// Endpoint for deleting the DB (ONLY FOR DEVELOPMENT!)
+app.delete('/flush', async (req, res) => {
+    try {
+        // Delete all records from the collections
+        await Ad.deleteMany({});
+        await Category.deleteMany({});
+        await User.deleteMany({});
+
+        res.status(200).json({ message: 'Database flushed successfully.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Start the server
 app.listen(8080, async () => {
     console.log('Connected to MongoDB');
