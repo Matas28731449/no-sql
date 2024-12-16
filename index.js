@@ -148,15 +148,13 @@ app.get('/ads', async (req, res) => {
     try {
         const { category, page = 1, limit = 10 } = req.query;
 
-        // Pagination calculations
         const pageNumber = parseInt(page, 10);
         const pageSize = parseInt(limit, 10);
         const skip = (pageNumber - 1) * pageSize;
 
-        // Build the query object
-        const query = {};
+        const query = { expires_at: { $gte: new Date() } };
         if (category) {
-            query.category_id = category; // Filter by category
+            query.category_id = category;
         }
 
         const ads = await Ad.find(query)
@@ -190,8 +188,8 @@ app.get('/ads/search', async (req, res) => {
 
         // Perform a case-insensitive regex search for partial matches
         const ads = await Ad.find({
-            'content.title': { $regex: title, $options: 'i' }, // 'i' makes it case-insensitive
-            expires_at: { $gte: new Date() }, // Ensure ads are still valid
+            'content.title': { $regex: title, $options: 'i' }, // Case-insensitive title search
+            expires_at: { $gte: new Date() } // Only show ads that haven't expired
         });
 
         if (ads.length === 0) {
