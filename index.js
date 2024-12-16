@@ -264,6 +264,23 @@ app.delete('/ads', authorize('user'), async (req, res) => {
     }
 });
 
+// Fetch all expired ads
+app.get('/ads/expired', async (req, res) => {
+    try {
+        // Query to fetch expired ads
+        const query = { expires_at: { $lt: new Date() } }; // Ads where expires_at is in the past
+
+        // Fetch expired ads
+        const expiredAds = await Ad.find(query)
+            .populate('category_id', 'name') // Populate category name
+            .populate('createdBy', 'name email'); // Populate user details
+
+        res.json({ expiredAds });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Endpoint for deleting the DB (ONLY FOR DEVELOPMENT!)
 app.delete('/flush', async (req, res) => {
     try {
