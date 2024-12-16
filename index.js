@@ -118,7 +118,7 @@ app.delete('/categories/:id', authorize('admin'), async (req, res) => {
 });
 
 // 8. Create ad
-app.post('/ads', authorize('user'), async (req, res) => {
+app.post('/ads', authorize('user'), async (req, res) => { // admin can access as well (authorize.json:17)
     try {
         const { content, images, category_id, expires_at } = req.body;
 
@@ -203,7 +203,7 @@ app.get('/ads/search', async (req, res) => {
 });
 
 
-// 11. Update Ad Status (User can only edit his own)
+// 10. Update Ad Status (User can only edit his own)
 app.patch('/ads', authorize('user'), async (req, res) => {
     try {
         const adId = req.query.id; // Extract the ad ID from the query parameter
